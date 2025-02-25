@@ -35,7 +35,6 @@ helm repo add dependency-track https://dependencytrack.github.io/helm-charts
 if helm status ${RELEASE_NAME} --namespace ${NAMESPACE}; then
    echo "Upgrading existing installation at ${NAMESPACE}/${RELEASE_NAME}"
    sed -e "s/{{ DB_PASSWD }}/${DB_PASSWD}/" values.yaml | helm upgrade ${RELEASE_NAME} dependency-track/dependency-track --namespace ${NAMESPACE} -f -
-   exit
 else
    echo "Installing Dependency Track in ${NAMESPACE}/${RELEASE_NAME}"
    sed -e "s/{{ DB_PASSWD }}/${DB_PASSWD}/" values.yaml | helm install ${RELEASE_NAME} dependency-track/dependency-track --namespace ${NAMESPACE} -f -
