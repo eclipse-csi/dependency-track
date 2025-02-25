@@ -46,7 +46,7 @@ def get_projects(args):
 
 def request(method: str, url: str, headers: Mapping[str, Any], data:str | None = None) -> requests.Response:
     response = requests.request(method, url, headers=headers, data=data)
-    if response.status_code != 200:
+    if response.status_code != 200 and response.status_code != 409:
         print(f"received error while accessing url '{url}': ({response.status_code}, {response.text})")
     return response
 
