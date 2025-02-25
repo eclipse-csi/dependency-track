@@ -1,0 +1,215 @@
+---
+common:
+  nameOverride: ""
+  fullnameOverride: ""
+  image:
+    registry: docker.io
+    pullSecrets: []
+  secretKey:
+    # -- Whether the chart should generate a secret key upon deployment.
+    createSecret: false
+    # -- Use the secret key defined in an existing secret.
+    existingSecretName: ""
+  serviceAccount:
+    # -- Whether the chart should generate a serviceAccount
+    create: true
+    annotations: {}
+    # -- Use the name of the name of the release by default, or specify a custom name.
+    name: "sa-dependency-track"
+    # -- Whether the serviceAccount should mount the token.
+    automount: false
+
+apiServer:
+  deploymentType: StatefulSet
+  annotations: {}
+  image:
+    registry: ''
+    repository: dependencytrack/apiserver
+    tag: snapshot
+    pullPolicy: Always
+  command: []
+  args: []
+  resources:
+    requests:
+      cpu: "2"
+      memory: 5Gi
+    limits:
+      cpu: "4"
+      memory: 5Gi
+  # -- Security context of the Pod.
+  # Aids in preventing permission issues with persistent volumes.
+  # For OpenShift, explicitly set this to null.
+  podSecurityContext:
+    fsGroup: null
+  persistentVolume:
+    enabled: false
+    className: ""
+    size: 5Gi
+  extraEnv:
+     - name: LOGGING_LEVEL
+       value: "INFO"
+     - name: ALPINE_DATABASE_MODE
+       value: "external"
+     - name: ALPINE_DATABASE_URL
+       value: "jdbc:postgresql://pgsql-write.eclipse.org:5432/dependency-track"
+     - name: ALPINE_DATABASE_DRIVER
+       value: "org.postgresql.Driver"
+     - name: ALPINE_DATABASE_USERNAME
+       value: "dependency-track"
+     - name: ALPINE_DATABASE_PASSWORD
+       valueFrom:
+         secretKeyRef:
+           key: db-password
+           name: dependencytrack-secrets
+     - name: ALPINE_OIDC_ENABLED
+       value: "true"
+     - name: ALPINE_OIDC_CLIENT_ID
+       value: "dependency-track"
+     - name: ALPINE_OIDC_ISSUER
+       value: "https://auth.eclipse.org/auth/realms/sbom"
+     - name: ALPINE_OIDC_USERNAME_CLAIM
+       value: "preferred_username"
+     - name: ALPINE_OIDC_USER_PROVISIONING
+       value: "true"
+     - name: ALPINE_OIDC_TEAMS_CLAIM
+       value: "groups"
+     - name: ALPINE_OIDC_TEAM_SYNCHRONIZATION
+       value: "true"
+     - name: ALPINE_CORS_ENABLED
+       value: "true"
+  extraEnvFrom: []
+  extraContainers: []
+  tolerations: []
+  probes:
+    liveness:
+      failureThreshold: 3
+      initialDelaySeconds: 10
+      periodSeconds: 15
+      successThreshold: 1
+      timeoutSeconds: 5
+    readiness:
+      failureThreshold: 3
+      initialDelaySeconds: 10
+      periodSeconds: 15
+      successThreshold: 1
+      timeoutSeconds: 5
+  additionalVolumeMounts: []
+  additionalVolumes: []
+  service:
+    type: ClusterIP
+    nodePort: ~
+    annotations: {}
+  serviceMonitor:
+    enabled: false
+    namespace: monitoring
+    scrapeInternal: 15s
+    scrapeTimeout: 30s
+  initContainers: []
+  nodeSelector: {}
+
+frontend:
+  replicaCount: 1
+  annotations: {}
+  image:
+    registry: ''
+    repository: dependencytrack/frontend
+    tag: snapshot
+    pullPolicy: Always
+  command: []
+  args: []
+  resources:
+    requests:
+      cpu: 150m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 128Mi
+  extraEnv:
+     - name: OIDC_CLIENT_ID
+       value: "dependency-track"
+     - name: OIDC_ISSUER
+       value: "https://auth.eclipse.org/auth/realms/sbom"
+  extraEnvFrom: []
+  extraContainers: []
+  tolerations: []
+  probes:
+    liveness:
+      failureThreshold: 3
+      initialDelaySeconds: 5
+      periodSeconds: 15
+      successThreshold: 1
+      timeoutSeconds: 5
+    readiness:
+      failureThreshold: 3
+      initialDelaySeconds: 5
+      periodSeconds: 15
+      successThreshold: 1
+      timeoutSeconds: 5
+  additionalVolumeMounts:
+    []
+  additionalVolumes:
+    []
+  service:
+    type: ClusterIP
+    nodePort: ~
+    annotations: {}
+  apiBaseUrl: ""
+  initContainers: []
+  nodeSelector: {}
+
+ingress:
+  enabled: false
+
+# -- Create extra manifests via values.
+extraObjects:
+  - apiVersion: "route.openshift.io/v1"
+    kind: "Route"
+    metadata:
+      name: dependency-track-frontend
+      namespace: foundation-sbom
+      annotations:
+        haproxy.router.openshift.io/timeout: 20s
+        haproxy.router.openshift.io/disable_cookies: "true"
+        haproxy.router.openshift.io/balance: roundrobin
+    spec:
+      host: "sbom.eclipse.org"
+      path: "/"
+      port:
+        targetPort: "web"
+      tls:
+        insecureEdgeTerminationPolicy: "Redirect"
+        termination: "edge"
+      to:
+        kind: "Service"
+        name: dependency-track-frontend
+        weight: 100
+  - apiVersion: "route.openshift.io/v1"
+    kind: "Route"
+    metadata:
+      name: dependency-track-api-server
+      namespace: foundation-sbom
+      annotations:
+        haproxy.router.openshift.io/timeout: 20s
+        haproxy.router.openshift.io/disable_cookies: "true"
+        haproxy.router.openshift.io/balance: roundrobin
+        #haproxy.router.openshift.io/rewrite-target: /
+    spec:
+      host: "sbom.eclipse.org"
+      path: "/api"
+      port:
+        targetPort: "web"
+      tls:
+        insecureEdgeTerminationPolicy: "Redirect"
+        termination: "edge"
+      to:
+        kind: "Service"
+        name: dependency-track-api-server
+        weight: 100
+  - apiVersion: v1
+    kind: Secret
+    type: Opaque
+    metadata:
+     name: dependencytrack-secrets
+     namespace: foundation-sbom
+    data:
+     db-password: {{ DB_PASSWD }}
