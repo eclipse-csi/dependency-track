@@ -1,0 +1,15 @@
+[project]
+name = "dependency-track-admin"
+requires-python = ">=3.11,<4.0"
+dependencies = [
+    "requests (>=2.32,<3.0)"
+]
+authors = [
+    { name = "Thomas Neidhart", email = "thomas.neidhart@eclipse-foundation.org" },
+]
+license = { text = "MIT" }
+version = "0.0.1"
+
+[tool.poetry]
+requires-poetry = ">=2.0"
+package-mode = false
