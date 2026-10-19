@@ -1,0 +1,121 @@
+---
+# Overrides for the dependency-track/dependency-track Helm chart (chart version: see README.md).
+# Only values that differ from the chart defaults belong here.
+common:
+  serviceAccount:
+    name: "sa-dependency-track"
+  # Key that encrypts credentials stored by Dependency-Track (e.g. the NVD API
+  # key). Managed outside of Helm (see README.md), so it survives pod re-creation.
+  secretKey:
+    existingSecretName: dependency-track-secret-key  # the upstream chart expects the key under "secret.key"
+
+apiServer:
+  image:
+    # Keep in sync with the chart's appVersion; never use a floating tag such as "snapshot".
+    tag: "4.14.5"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: "2"
+      memory: 5Gi
+    limits:
+      cpu: "4"
+      memory: 5Gi
+  # "For OpenShift, explicitly set this to null." (upstream chart values.yaml)
+  podSecurityContext: null
+  extraEnv:
+     - name: LOGGING_LEVEL
+       value: "INFO"
+     - name: ALPINE_DATABASE_MODE
+       value: "external"
+     - name: ALPINE_DATABASE_URL
+       value: "jdbc:postgresql://pgsql-write.eclipse.org:5432/dependency-track"
+     - name: ALPINE_DATABASE_DRIVER
+       value: "org.postgresql.Driver"
+     - name: ALPINE_DATABASE_USERNAME
+       value: "dependency-track"
+     - name: ALPINE_DATABASE_PASSWORD
+       valueFrom:
+         secretKeyRef:
+           key: db-password
+           name: dependencytrack-secrets
+     - name: ALPINE_OIDC_ENABLED
+       value: "true"
+     - name: ALPINE_OIDC_CLIENT_ID
+       value: "dependency-track"
+     - name: ALPINE_OIDC_ISSUER
+       value: "https://auth.eclipse.org/auth/realms/sbom"
+     - name: ALPINE_OIDC_USERNAME_CLAIM
+       value: "preferred_username"
+     - name: ALPINE_OIDC_USER_PROVISIONING
+       value: "true"
+     - name: ALPINE_OIDC_TEAMS_CLAIM
+       value: "groups"
+     - name: ALPINE_OIDC_TEAM_SYNCHRONIZATION
+       value: "true"
+     - name: ALPINE_CORS_ENABLED
+       value: "true"
+
+frontend:
+  image:
+    # Keep in sync with apiServer.image.tag.
+    tag: "4.14.5"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 150m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 128Mi
+  # "For OpenShift, explicitly set this to null." (upstream chart values.yaml)
+  podSecurityContext: null
+  extraEnv:
+     - name: OIDC_CLIENT_ID
+       value: "dependency-track"
+     - name: OIDC_ISSUER
+       value: "https://auth.eclipse.org/auth/realms/sbom"
+
+# -- Create extra manifests via values.
+# No namespace is set, so they are created in the release namespace.
+extraObjects:
+  - apiVersion: "route.openshift.io/v1"
+    kind: "Route"
+    metadata:
+      name: dependency-track-frontend
+      annotations:
+        haproxy.router.openshift.io/timeout: 20s
+        haproxy.router.openshift.io/disable_cookies: "true"
+        haproxy.router.openshift.io/balance: roundrobin
+    spec:
+      host: "sbom.eclipse.org"
+      path: "/"
+      port:
+        targetPort: "web"
+      tls:
+        insecureEdgeTerminationPolicy: "Redirect"
+        termination: "edge"
+      to:
+        kind: "Service"
+        name: '{{ include "dependencytrack.frontendFullname" . }}'
+        weight: 100
+  - apiVersion: "route.openshift.io/v1"
+    kind: "Route"
+    metadata:
+      name: dependency-track-api-server
+      annotations:
+        haproxy.router.openshift.io/timeout: 20s
+        haproxy.router.openshift.io/disable_cookies: "true"
+        haproxy.router.openshift.io/balance: roundrobin
+    spec:
+      host: "sbom.eclipse.org"
+      path: "/api"
+      port:
+        targetPort: "web"
+      tls:
+        insecureEdgeTerminationPolicy: "Redirect"
+        termination: "edge"
+      to:
+        kind: "Service"
+        name: '{{ include "dependencytrack.apiServerFullname" . }}'
+        weight: 100
