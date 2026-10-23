@@ -79,7 +79,7 @@ oc rollout restart statefulset -n <namespace>
 
 ## Upgrading
 
-Upgrade staging first, verify it, then repeat steps 4 to 7 for production.
+Upgrade staging first, verify it, then repeat steps 4 to 6 for production.
 
 ### 1. Check what is running
 
@@ -91,7 +91,7 @@ curl -s https://sbom.eclipse.org/api/version | jq .version
 `curl` asks the running application and is always accurate. `helm list -n
 <namespace>` shows the chart version and the chart's app version, which match
 what is running as long as the image tags in the values files equal the chart's
-app version (see step 5) and nobody changed the workloads by hand.
+app version (see step 4) and nobody changed the workloads by hand.
 
 ### 2. Check what is available
 
@@ -115,35 +115,18 @@ diff -ru /tmp/chart-old/dependency-track /tmp/chart-new/dependency-track
 ```
 
 - Read the chart's `MIGRATION.md` and the Dependency-Track release notes.
+- Dependency-Track migrates the database schema on startup, and there is no
+  downgrade path: a failed upgrade can only be undone by restoring the
+  database. Production (`pgsql-write.eclipse.org`) is backed up by the
+  infrastructure team; ask them for a restore. Staging has no backups and does
+  not need any: if its database is lost, start from an empty one.
 - Watch out for new defaults that clash with OpenShift. For example, the chart
   sets `podSecurityContext.fsGroup: 1000`, which OpenShift rejects; it is set to
   `null` in our values files.
 - Render the result and review it:
   `helm template dtrack dependency-track/dependency-track --version <new> -f deployment/values-staging.yaml`
 
-### 4. Back up the database
-
-Dependency-Track migrates the database schema on startup; restoring the backup
-is the only way back. `deployment/backup-db.sh` runs `pg_dump` in a temporary
-pod in the namespace, so no local PostgreSQL tools or database access are
-needed. It writes `dtrack-<namespace>-<date>.dump` to the current directory and
-checks that the dump is complete.
-
-**Staging**
-```sh
-deployment/backup-db.sh foundation-internal-security-sbom-staging \
-  sbom-postgres-rw dependency-track dependency-track sbom-user password
-```
-
-**Production**
-```sh
-deployment/backup-db.sh foundation-sbom \
-  pgsql-write.eclipse.org dependency-track dependency-track dependencytrack-secrets db-password
-```
-
-Keep the dumps outside of this repository.
-
-### 5. Bump the versions
+### 4. Bump the versions
 
 - Set `apiServer.image.tag` and `frontend.image.tag` in both values files to
   the app version of the new chart (shown by `helm search` in step 2).
@@ -153,12 +136,12 @@ Never use floating tags such as `snapshot` or `latest` with
 `pullPolicy: Always`. Every pod restart can then silently change the running
 version, including schema migrations of the database.
 
-### 6. Deploy
+### 5. Deploy
 
 Run the deploy command for the environment (see [Deploying](#deploying)), first
 with `--dry-run=server` appended to check the result against the cluster.
 
-### 7. Verify
+### 6. Verify
 
 - `curl -s https://<host>/api/version | jq .version` shows the new version, and
   `helm list -n <namespace>` the new chart and app version.
