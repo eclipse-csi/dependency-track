@@ -9,7 +9,7 @@ Dependency-Track is deployed with the upstream
 | Environment | Host                       | Namespace                                   | Release            | Values file                         |
 |-------------|----------------------------|---------------------------------------------|--------------------|-------------------------------------|
 | staging     | `sbom-staging.eclipse.org` | `foundation-internal-security-sbom-staging` | `dependency-track` | `deployment/values-staging.yaml`    |
-| production  | `sbom.eclipse.org`         | `foundation-sbom`                           | `dependency-track` | `deployment/values-production.yaml` |
+| production  | `sbom.eclipse.org`         | `foundation-internal-security-sbom`         | `dependency-track` | `deployment/values-production.yaml` |
 
 ## Deploying
 
@@ -32,7 +32,7 @@ helm upgrade --install dependency-track dependency-track/dependency-track --vers
 **Production**
 ```sh
 helm upgrade --install dependency-track dependency-track/dependency-track --version 1.6.0 \
-  -n foundation-sbom -f deployment/values-production.yaml
+  -n foundation-internal-security-sbom -f deployment/values-production.yaml
 ```
 
 
