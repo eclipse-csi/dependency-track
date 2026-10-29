@@ -8,7 +8,7 @@ Dependency-Track is deployed with the upstream
 
 | Environment | Host                       | Namespace                                   | Release            | Values file                         |
 |-------------|----------------------------|---------------------------------------------|--------------------|-------------------------------------|
-| staging     | `sbom-staging.eclipse.org` | `foundation-internal-security-sbom-staging` | `dtrack`           | `deployment/values-staging.yaml`    |
+| staging     | `sbom-staging.eclipse.org` | `foundation-internal-security-sbom-staging` | `dependency-track` | `deployment/values-staging.yaml`    |
 | production  | `sbom.eclipse.org`         | `foundation-sbom`                           | `dependency-track` | `deployment/values-production.yaml` |
 
 ## Deploying
@@ -25,7 +25,7 @@ Deploy from the repository root. **Make sure the Secrets exist first (see
 
 **Staging**
 ```sh
-helm upgrade --install dtrack dependency-track/dependency-track --version 1.6.0 \
+helm upgrade --install dependency-track dependency-track/dependency-track --version 1.6.0 \
   -n foundation-internal-security-sbom-staging -f deployment/values-staging.yaml
 ```
 
@@ -124,7 +124,7 @@ diff -ru /tmp/chart-old/dependency-track /tmp/chart-new/dependency-track
   sets `podSecurityContext.fsGroup: 1000`, which OpenShift rejects; it is set to
   `null` in our values files.
 - Render the result and review it:
-  `helm template dtrack dependency-track/dependency-track --version <new> -f deployment/values-staging.yaml`
+  `helm template dependency-track dependency-track/dependency-track --version <new> -f deployment/values-staging.yaml`
 
 ### 4. Bump the versions
 
